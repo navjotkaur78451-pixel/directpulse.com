@@ -446,7 +446,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn" onclick="selectPackage('25 USDT')">Activate Package</button>
+        <button class="btn" onclick="selectPackage('25 USDT', 25)">Activate Package</button>
       </article>
 
       <!-- PACKAGE 2: 100 USDT -->
@@ -466,7 +466,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn" onclick="selectPackage('100 USDT')">Activate Package</button>
+        <button class="btn" onclick="selectPackage('100 USDT', 100)">Activate Package</button>
       </article>
 
       <!-- PACKAGE 3: 400 USDT -->
@@ -486,7 +486,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn" onclick="selectPackage('400 USDT')">Activate Package</button>
+        <button class="btn" onclick="selectPackage('400 USDT', 400)">Activate Package</button>
       </article>
 
       <!-- PACKAGE 4: 2,500 USDT -->
@@ -506,7 +506,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn primary" onclick="selectPackage('2,500 USDT')">Activate Package</button>
+        <button class="btn primary" onclick="selectPackage('2,500 USDT', 2500)">Activate Package</button>
       </article>
 
       <!-- PACKAGE 5: 7,500 USDT -->
@@ -526,7 +526,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn" onclick="selectPackage('7,500 USDT')">Activate Package</button>
+        <button class="btn" onclick="selectPackage('7,500 USDT', 7500)">Activate Package</button>
       </article>
 
       <!-- PACKAGE 6: 25,000 USDT -->
@@ -546,7 +546,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn" onclick="selectPackage('25,000 USDT')">Activate Package</button>
+        <button class="btn" onclick="selectPackage('25,000 USDT', 25000)">Activate Package</button>
       </article>
 
     </div>
@@ -625,6 +625,9 @@ section{padding:60px 0;position:relative}
 <div class="toast" id="toast"></div>
 
 <script>
+// Attached Verified Smart Contract Address
+const CONTRACT_ADDRESS = "0xDBC6a2A23C1D8BbBd9B1D5FE309876cf45D34E08";
+
 const $ = (id) => document.getElementById(id);
 
 function toast(message){
@@ -679,8 +682,8 @@ async function copyReferral(){
   }
 }
 
-function selectPackage(name){
-  toast(name + ' package selected.');
+function selectPackage(name, amount){
+  toast(name + ' package selected. Contract: ' + CONTRACT_ADDRESS.substring(0,6) + '...');
 }
 
 document.querySelectorAll('.modal').forEach(modal=>{
