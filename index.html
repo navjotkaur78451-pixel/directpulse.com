@@ -628,6 +628,20 @@ section{padding:60px 0;position:relative}
 // Attached Verified Smart Contract Address
 const CONTRACT_ADDRESS = "0xDBC6a2A23C1D8BbBd9B1D5FE309876cf45D34E08";
 
+// BNB Smart Chain (BSC Mainnet) parameters
+const BSC_CHAIN_ID_HEX = "0x38"; // 56
+const BSC_NETWORK_PARAMS = {
+  chainId: BSC_CHAIN_ID_HEX,
+  chainName: "BNB Smart Chain",
+  nativeCurrency: {
+    name: "BNB",
+    symbol: "BNB",
+    decimals: 18
+  },
+  rpcUrls: ["https://bsc-dataseed.binance.org/"],
+  blockExplorerUrls: ["https://bscscan.com/"]
+};
+
 const $ = (id) => document.getElementById(id);
 
 function toast(message){
@@ -641,31 +655,69 @@ function toast(message){
 function openDashboard(){ $('dashboardModal').classList.add('show'); }
 function closeModal(id){ $(id).classList.remove('show'); }
 
+async function getProviderWithRetry(){
+  let provider = window.ethereum || (window.trustwallet && window.trustwallet.ethereum) || null;
+  if(!provider){
+    await new Promise(resolve => setTimeout(resolve, 800));
+    provider = window.ethereum || (window.trustwallet && window.trustwallet.ethereum) || null;
+  }
+  return provider;
+}
+
+async function ensureBSCNetwork(provider){
+  try{
+    const currentChainId = await provider.request({ method: 'eth_chainId' });
+    if(currentChainId && currentChainId.toLowerCase() === BSC_CHAIN_ID_HEX){
+      return true;
+    }
+    await provider.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: BSC_CHAIN_ID_HEX }]
+    });
+    return true;
+  }catch(switchErr){
+    const code = switchErr && (switchErr.code || (switchErr.data && switchErr.data.originalError && switchErr.data.originalError.code));
+    if(code === 4902){
+      await provider.request({
+        method: 'wallet_addEthereumChain',
+        params: [BSC_NETWORK_PARAMS]
+      });
+      return true;
+    }
+    throw switchErr;
+  }
+}
+
 async function connectWallet(){
   $('walletModal').classList.add('show');
   const text = $('walletText');
   const address = $('walletAddress');
+  text.textContent = 'Checking for a compatible Web3 wallet...';
+  address.textContent = '';
 
-  if(!window.ethereum){
+  const provider = await getProviderWithRetry();
+
+  if(!provider){
     text.textContent = 'No Web3 wallet detected. Please open in Metamask or Trust Wallet.';
     address.textContent = '';
     return;
   }
 
   try{
-    const accounts = await window.ethereum.request({ method:'eth_requestAccounts' });
+    const accounts = await provider.request({ method:'eth_requestAccounts' });
     if(accounts && accounts.length){
+      await ensureBSCNetwork(provider);
       const userAddress = accounts[0];
-      text.textContent = 'Wallet connected successfully!';
+      text.textContent = 'Wallet connected successfully on BNB Smart Chain!';
       address.textContent = userAddress;
 
       const currentDomain = window.location.origin + window.location.pathname;
       $('refLink').value = currentDomain + "?ref=" + userAddress;
 
-      toast('Wallet Connected!');
+      toast('Connected to BNB Smart Chain!');
     }
   }catch(err){
-    text.textContent = 'Wallet connection was cancelled.';
+    text.textContent = 'Please approve connection and switch to BNB Smart Chain.';
     address.textContent = '';
   }
 }
