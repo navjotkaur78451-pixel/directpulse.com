@@ -127,6 +127,7 @@ button{cursor:pointer}
   transition: opacity 0.2s ease, transform 0.1s;
 }
 .btn:active{opacity: 0.8; transform: scale(0.98);}
+.btn:disabled{opacity: 0.55; cursor: not-allowed;}
 .btn.primary{
   border:0;
   background:linear-gradient(135deg,#7c3aed,#24d9ff);
@@ -446,7 +447,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn" onclick="selectPackage('25 USDT', 25)">Activate Package</button>
+        <button class="btn" onclick="selectPackage('25 USDT', 25, this)">Activate Package</button>
       </article>
 
       <!-- PACKAGE 2: 100 USDT -->
@@ -466,7 +467,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn" onclick="selectPackage('100 USDT', 100)">Activate Package</button>
+        <button class="btn" onclick="selectPackage('100 USDT', 100, this)">Activate Package</button>
       </article>
 
       <!-- PACKAGE 3: 400 USDT -->
@@ -486,7 +487,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn" onclick="selectPackage('400 USDT', 400)">Activate Package</button>
+        <button class="btn" onclick="selectPackage('400 USDT', 400, this)">Activate Package</button>
       </article>
 
       <!-- PACKAGE 4: 2,500 USDT -->
@@ -506,7 +507,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn primary" onclick="selectPackage('2,500 USDT', 2500)">Activate Package</button>
+        <button class="btn primary" onclick="selectPackage('2,500 USDT', 2500, this)">Activate Package</button>
       </article>
 
       <!-- PACKAGE 5: 7,500 USDT -->
@@ -526,7 +527,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn" onclick="selectPackage('7,500 USDT', 7500)">Activate Package</button>
+        <button class="btn" onclick="selectPackage('7,500 USDT', 7500, this)">Activate Package</button>
       </article>
 
       <!-- PACKAGE 6: 25,000 USDT -->
@@ -546,7 +547,7 @@ section{padding:60px 0;position:relative}
             <li>Instant On-Chain Settlement</li>
           </ul>
         </div>
-        <button class="btn" onclick="selectPackage('25,000 USDT', 25000)">Activate Package</button>
+        <button class="btn" onclick="selectPackage('25,000 USDT', 25000, this)">Activate Package</button>
       </article>
 
     </div>
@@ -628,6 +629,10 @@ section{padding:60px 0;position:relative}
 // Attached Verified Smart Contract Address
 const CONTRACT_ADDRESS = "0xDBC6a2A23C1D8BbBd9B1D5FE309876cf45D34E08";
 
+// Real BSC Mainnet USDT (BEP20 - 18 decimals)
+const USDT_BSC_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
 // BNB Smart Chain (BSC Mainnet) parameters
 const BSC_CHAIN_ID_HEX = "0x38"; // 56
 const BSC_NETWORK_PARAMS = {
@@ -644,12 +649,12 @@ const BSC_NETWORK_PARAMS = {
 
 const $ = (id) => document.getElementById(id);
 
-function toast(message){
+function toast(message, duration = 2600){
   const el = $('toast');
   el.textContent = message;
   el.classList.add('show');
   clearTimeout(window.__toast);
-  window.__toast = setTimeout(()=>el.classList.remove('show'),2200);
+  window.__toast = setTimeout(()=>el.classList.remove('show'), duration);
 }
 
 function openDashboard(){ $('dashboardModal').classList.add('show'); }
@@ -686,6 +691,34 @@ async function ensureBSCNetwork(provider){
     }
     throw switchErr;
   }
+}
+
+function encodeAddress(addr){
+  const clean = addr.toLowerCase().replace(/^0x/, "");
+  return clean.padStart(64, "0");
+}
+
+function encodeUint256(bigIntVal){
+  return bigIntVal.toString(16).padStart(64, "0");
+}
+
+function decodeUint256(hexResult){
+  if(!hexResult || hexResult === "0x") return BigInt(0);
+  return BigInt(hexResult);
+}
+
+async function waitForTxReceipt(provider, txHash, maxAttempts = 45){
+  for(let i = 0; i < maxAttempts; i++){
+    const receipt = await provider.request({
+      method: "eth_getTransactionReceipt",
+      params: [txHash]
+    });
+    if(receipt && receipt.status !== undefined){
+      return receipt;
+    }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  throw new Error("Transaction confirmation timed out. Check BscScan.");
 }
 
 async function connectWallet(){
@@ -734,8 +767,119 @@ async function copyReferral(){
   }
 }
 
-function selectPackage(name, amount){
-  toast(name + ' package selected. Contract: ' + CONTRACT_ADDRESS.substring(0,6) + '...');
+function getCleanReferrer(){
+  const urlParams = new URLSearchParams(window.location.search);
+  const rawRef = (window.userReferrer || urlParams.get('ref') || "").trim();
+  if(/^0x[a-fA-F0-9]{40}$/.test(rawRef)){
+    return rawRef;
+  }
+  return ZERO_ADDRESS;
+}
+
+async function selectPackage(name, amount, btnEl){
+  const originalLabel = btnEl ? btnEl.textContent : "";
+  if(btnEl){
+    btnEl.disabled = true;
+    btnEl.textContent = "Processing...";
+  }
+
+  try{
+    const provider = await getProviderWithRetry();
+    if(!provider){
+      toast("Please open in MetaMask or Trust Wallet browser.");
+      return;
+    }
+
+    const accounts = await provider.request({ method: "eth_requestAccounts" });
+    if(!accounts || !accounts.length){
+      toast("Please connect your wallet first.");
+      return;
+    }
+    const userAddress = accounts[0];
+
+    const currentDomain = window.location.origin + window.location.pathname;
+    if($('refLink') && $('refLink').value.indexOf("Connect Wallet") === 0){
+      $('refLink').value = currentDomain + "?ref=" + userAddress;
+    }
+
+    await ensureBSCNetwork(provider);
+
+    // Contract uses 25 * 10**18 (18 decimals); if amount is 25, requiredWei = 25 * 10^18
+    const amountWei = BigInt(amount) * (BigInt(10) ** BigInt(18));
+
+    // 1. Check USDT balance
+    const balanceData = "0x70a08231" + encodeAddress(userAddress);
+    const balanceHex = await provider.request({
+      method: "eth_call",
+      params: [{ to: USDT_BSC_ADDRESS, data: balanceData }, "latest"]
+    });
+    const usdtBalance = decodeUint256(balanceHex);
+    if(usdtBalance < amountWei){
+      toast("Insufficient USDT (BEP20) balance for " + name + ".", 3500);
+      return;
+    }
+
+    // 2. Check USDT allowance for DirectPulse contract
+    const allowanceData = "0xdd62ed3e" + encodeAddress(userAddress) + encodeAddress(CONTRACT_ADDRESS);
+    const allowanceHex = await provider.request({
+      method: "eth_call",
+      params: [{ to: USDT_BSC_ADDRESS, data: allowanceData }, "latest"]
+    });
+    const currentAllowance = decodeUint256(allowanceHex);
+
+    // 3. Approve USDT if allowance is less than required amount
+    if(currentAllowance < amountWei){
+      if(btnEl) btnEl.textContent = "Approving USDT...";
+      toast("Approve USDT in your wallet...", 3000);
+      const approveData = "0x095ea7b3" + encodeAddress(CONTRACT_ADDRESS) + encodeUint256(amountWei);
+      const approveHash = await provider.request({
+        method: "eth_sendTransaction",
+        params: [{
+          from: userAddress,
+          to: USDT_BSC_ADDRESS,
+          data: approveData
+        }]
+      });
+      const approveReceipt = await waitForTxReceipt(provider, approveHash);
+      if(approveReceipt && approveReceipt.status === "0x0"){
+        toast("USDT approval failed on chain.", 3500);
+        return;
+      }
+    }
+
+    // 4. Call activatePackage(address _referrer) on DirectPulse contract
+    if(btnEl) btnEl.textContent = "Activating...";
+    toast("Confirm package activation in wallet...", 3000);
+    const referrerAddr = getCleanReferrer();
+    // Function selector for activatePackage(address): first 4 bytes of keccak256("activatePackage(address)")
+    const activateSelector = "0x475a0988";
+    const activateData = activateSelector + encodeAddress(referrerAddr);
+
+    const activateHash = await provider.request({
+      method: "eth_sendTransaction",
+      params: [{
+        from: userAddress,
+        to: CONTRACT_ADDRESS,
+        data: activateData
+      }]
+    });
+
+    const receipt = await waitForTxReceipt(provider, activateHash);
+    if(receipt && receipt.status === "0x1"){
+      toast(name + " activated! Payouts distributed on-chain.", 4000);
+    }else{
+      toast("Activation transaction failed. Check BscScan.", 3500);
+    }
+
+  }catch(err){
+    const msg = (err && (err.shortMessage || err.message)) || "Transaction cancelled or failed.";
+    toast(msg.slice(0, 90), 3500);
+  }finally{
+    if(btnEl){
+      btnEl.disabled = false;
+      btnEl.textContent = originalLabel || "Activate Package";
+    }
+  }
 }
 
 document.querySelectorAll('.modal').forEach(modal=>{
