@@ -327,12 +327,14 @@ section{padding:60px 0;position:relative}
   opacity:0;
   pointer-events:none;
   z-index:700;
-  padding:10px 18px;
+  padding:12px 20px;
   border:1px solid var(--line);
   border-radius:10px;
   background:#11111b;
   color:#fff;font-size:13px;
   transition: opacity 0.3s;
+  max-width: 90%;
+  text-align: center;
 }
 .toast.show{opacity:1}
 
@@ -360,7 +362,7 @@ section{padding:60px 0;position:relative}
     <button class="dashboard-btn-icon" onclick="openDashboard()">
       📊 <span>Dashboard</span>
     </button>
-    <button class="btn primary" onclick="connectWallet()">Connect Wallet</button>
+    <button class="btn primary" id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
   </div>
 </header>
 
@@ -590,22 +592,22 @@ section{padding:60px 0;position:relative}
     <div class="dashboard-grid">
       <div class="dash-card">
         <h4>Total Team</h4>
-        <div class="val">0</div>
+        <div class="val" id="dashDirectCount">0</div>
       </div>
       <div class="dash-card">
-        <h4>New Joining (24h)</h4>
-        <div class="val">0</div>
+        <h4>Active Package</h4>
+        <div class="val" id="dashActivePkg">0 USDT</div>
       </div>
     </div>
 
     <div class="dashboard-grid">
       <div class="dash-card">
-        <h4>Live Balance</h4>
-        <div class="val highlight">0.00 USDT</div>
+        <h4>Total Earned</h4>
+        <div class="val highlight" id="dashTotalEarned">0.00 USDT</div>
       </div>
       <div class="dash-card">
-        <h4>History Balance</h4>
-        <div class="val gold">0.00 USDT</div>
+        <h4>Total Invested</h4>
+        <div class="val gold" id="dashTotalInvested">0.00 USDT</div>
       </div>
     </div>
   </div>
@@ -626,7 +628,7 @@ section{padding:60px 0;position:relative}
 <div class="toast" id="toast"></div>
 
 <script>
-// Attached Verified Smart Contract Address
+// Deployed DirectPulse Smart Contract Address
 const CONTRACT_ADDRESS = "0xDBC6a2A23C1D8BbBd9B1D5FE309876cf45D34E08";
 
 // Real BSC Mainnet USDT (BEP20 - 18 decimals)
@@ -649,7 +651,7 @@ const BSC_NETWORK_PARAMS = {
 
 const $ = (id) => document.getElementById(id);
 
-function toast(message, duration = 2600){
+function toast(message, duration = 3000){
   const el = $('toast');
   el.textContent = message;
   el.classList.add('show');
@@ -657,14 +659,13 @@ function toast(message, duration = 2600){
   window.__toast = setTimeout(()=>el.classList.remove('show'), duration);
 }
 
-function openDashboard(){ $('dashboardModal').classList.add('show'); }
 function closeModal(id){ $(id).classList.remove('show'); }
 
 async function getProviderWithRetry(){
-  let provider = window.ethereum || (window.trustwallet && window.trustwallet.ethereum) || null;
+  let provider = window.ethereum || (window.trustwallet && window.trustwallet.ethereum) || (window.BinanceChain) || null;
   if(!provider){
     await new Promise(resolve => setTimeout(resolve, 800));
-    provider = window.ethereum || (window.trustwallet && window.trustwallet.ethereum) || null;
+    provider = window.ethereum || (window.trustwallet && window.trustwallet.ethereum) || (window.BinanceChain) || null;
   }
   return provider;
 }
@@ -707,18 +708,70 @@ function decodeUint256(hexResult){
   return BigInt(hexResult);
 }
 
-async function waitForTxReceipt(provider, txHash, maxAttempts = 45){
-  for(let i = 0; i < maxAttempts; i++){
-    const receipt = await provider.request({
-      method: "eth_getTransactionReceipt",
-      params: [txHash]
+function formatUSDT(weiVal){
+  const whole = weiVal / (BigInt(10) ** BigInt(18));
+  const frac = (weiVal % (BigInt(10) ** BigInt(18))) / (BigInt(10) ** BigInt(16));
+  return whole.toString() + "." + frac.toString().padStart(2, "0");
+}
+
+async function loadUserDashboard(provider, userAddress){
+  try{
+    // getUserDetails(address) selector = 0x2c64b0f3
+    const userDetailsData = "0x2c64b0f3" + encodeAddress(userAddress);
+    const resHex = await provider.request({
+      method: "eth_call",
+      params: [{ to: CONTRACT_ADDRESS, data: userDetailsData }, "latest"]
     });
-    if(receipt && receipt.status !== undefined){
-      return receipt;
+    if(resHex && resHex.length >= 322){
+      const clean = resHex.replace(/^0x/, "");
+      const totalEarned = BigInt("0x" + clean.slice(128, 192));
+      const directCount = BigInt("0x" + clean.slice(192, 256));
+      const totalInvested = BigInt("0x" + clean.slice(256, 320));
+      $('dashDirectCount').textContent = directCount.toString();
+      $('dashTotalEarned').textContent = formatUSDT(totalEarned) + " USDT";
+      $('dashTotalInvested').textContent = formatUSDT(totalInvested) + " USDT";
     }
+
+    // activePackages(address) selector = 0xf1b6f377
+    const activePkgData = "0xf1b6f377" + encodeAddress(userAddress);
+    const pkgHex = await provider.request({
+      method: "eth_call",
+      params: [{ to: CONTRACT_ADDRESS, data: activePkgData }, "latest"]
+    });
+    const activePkgWei = decodeUint256(pkgHex);
+    $('dashActivePkg').textContent = (activePkgWei / (BigInt(10) ** BigInt(18))).toString() + " USDT";
+  }catch(e){
+    // Silent fallback if RPC rate-limits
+  }
+}
+
+async function openDashboard(){
+  $('dashboardModal').classList.add('show');
+  const provider = await getProviderWithRetry();
+  if(provider){
+    try{
+      const accounts = await provider.request({ method: 'eth_accounts' });
+      if(accounts && accounts.length){
+        await loadUserDashboard(provider, accounts[0]);
+      }
+    }catch(e){}
+  }
+}
+
+async function waitForTxReceipt(provider, txHash, maxAttempts = 25){
+  for(let i = 0; i < maxAttempts; i++){
+    try{
+      const receipt = await provider.request({
+        method: "eth_getTransactionReceipt",
+        params: [txHash]
+      });
+      if(receipt && receipt.status !== undefined && receipt.status !== null){
+        return receipt;
+      }
+    }catch(e){}
     await new Promise(r => setTimeout(r, 2000));
   }
-  throw new Error("Transaction confirmation timed out. Check BscScan.");
+  throw new Error("Confirmation taking longer. Please check BscScan.");
 }
 
 async function connectWallet(){
@@ -731,7 +784,7 @@ async function connectWallet(){
   const provider = await getProviderWithRetry();
 
   if(!provider){
-    text.textContent = 'No Web3 wallet detected. Please open in Metamask or Trust Wallet.';
+    text.textContent = 'No Web3 wallet detected. Please open in Binance Web3 Wallet, MetaMask, or Trust Wallet.';
     address.textContent = '';
     return;
   }
@@ -744,9 +797,14 @@ async function connectWallet(){
       text.textContent = 'Wallet connected successfully on BNB Smart Chain!';
       address.textContent = userAddress;
 
+      if($('connectBtn')){
+        $('connectBtn').textContent = userAddress.slice(0, 6) + "..." + userAddress.slice(-4);
+      }
+
       const currentDomain = window.location.origin + window.location.pathname;
       $('refLink').value = currentDomain + "?ref=" + userAddress;
 
+      await loadUserDashboard(provider, userAddress);
       toast('Connected to BNB Smart Chain!');
     }
   }catch(err){
@@ -777,16 +835,16 @@ function getCleanReferrer(){
 }
 
 async function selectPackage(name, amount, btnEl){
-  const originalLabel = btnEl ? btnEl.textContent : "";
+  const originalLabel = btnEl ? btnEl.textContent : "Activate Package";
   if(btnEl){
     btnEl.disabled = true;
-    btnEl.textContent = "Processing...";
+    btnEl.textContent = "Checking...";
   }
 
   try{
     const provider = await getProviderWithRetry();
     if(!provider){
-      toast("Please open in MetaMask or Trust Wallet browser.");
+      toast("Please open inside Binance Web3 Wallet, MetaMask, or Trust Wallet.");
       return;
     }
 
@@ -804,7 +862,7 @@ async function selectPackage(name, amount, btnEl){
 
     await ensureBSCNetwork(provider);
 
-    // Contract uses 25 * 10**18 (18 decimals); if amount is 25, requiredWei = 25 * 10^18
+    // Dynamic Package Amount in 18 decimals (works for 25, 100, 400, 2500, 7500, 25000 USDT)
     const amountWei = BigInt(amount) * (BigInt(10) ** BigInt(18));
 
     // 1. Check USDT balance
@@ -830,7 +888,7 @@ async function selectPackage(name, amount, btnEl){
     // 3. Approve USDT if allowance is less than required amount
     if(currentAllowance < amountWei){
       if(btnEl) btnEl.textContent = "Approving USDT...";
-      toast("Approve USDT in your wallet...", 3000);
+      toast("Approve " + name + " in your wallet...", 3000);
       const approveData = "0x095ea7b3" + encodeAddress(CONTRACT_ADDRESS) + encodeUint256(amountWei);
       const approveHash = await provider.request({
         method: "eth_sendTransaction",
@@ -845,15 +903,17 @@ async function selectPackage(name, amount, btnEl){
         toast("USDT approval failed on chain.", 3500);
         return;
       }
+      toast("USDT Approved! Now confirming package...", 2500);
     }
 
-    // 4. Call activatePackage(address _referrer) on DirectPulse contract
-    if(btnEl) btnEl.textContent = "Activating...";
-    toast("Confirm package activation in wallet...", 3000);
+    // 4. Call activatePackage(address _referrer, uint256 _packageAmount)
+    if(btnEl) btnEl.textContent = "Confirm in Wallet...";
+    toast("Confirm " + name + " activation in wallet...", 3000);
+
     const referrerAddr = getCleanReferrer();
-    // Function selector for activatePackage(address): first 4 bytes of keccak256("activatePackage(address)")
-    const activateSelector = "0x475a0988";
-    const activateData = activateSelector + encodeAddress(referrerAddr);
+    // Exact 4-byte selector for activatePackage(address,uint256)
+    const activateSelector = "0x81f1b741";
+    const activateData = activateSelector + encodeAddress(referrerAddr) + encodeUint256(amountWei);
 
     const activateHash = await provider.request({
       method: "eth_sendTransaction",
@@ -864,20 +924,22 @@ async function selectPackage(name, amount, btnEl){
       }]
     });
 
+    if(btnEl) btnEl.textContent = "Activating...";
     const receipt = await waitForTxReceipt(provider, activateHash);
     if(receipt && receipt.status === "0x1"){
-      toast(name + " activated! Payouts distributed on-chain.", 4000);
+      toast(name + " activated! Funds distributed on-chain.", 4500);
+      await loadUserDashboard(provider, userAddress);
     }else{
-      toast("Activation transaction failed. Check BscScan.", 3500);
+      toast("Activation failed on chain. Check BscScan.", 4000);
     }
 
   }catch(err){
     const msg = (err && (err.shortMessage || err.message)) || "Transaction cancelled or failed.";
-    toast(msg.slice(0, 90), 3500);
+    toast(msg.slice(0, 100), 4000);
   }finally{
     if(btnEl){
       btnEl.disabled = false;
-      btnEl.textContent = originalLabel || "Activate Package";
+      btnEl.textContent = originalLabel;
     }
   }
 }
