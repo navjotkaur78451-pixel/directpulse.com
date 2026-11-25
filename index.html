@@ -596,7 +596,7 @@ section{padding:60px 0;position:relative}
       </div>
       <div class="dash-card">
         <h4>Active Package</h4>
-        <div class="val" id="dashActivePkg">0 USDT</div>
+        <div class="val" id="dashActivePkg">Inactive</div>
       </div>
     </div>
 
@@ -634,6 +634,17 @@ const CONTRACT_ADDRESS = "0xDBC6a2A23C1D8BbBd9B1D5FE309876cf45D34E08";
 // Real BSC Mainnet USDT (BEP20 - 18 decimals)
 const USDT_BSC_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+// Fixed 25.00 USDT in 18 decimals matching DirectPulse contract PACKAGE_PRICE
+const CONTRACT_PACKAGE_PRICE_WEI = BigInt(25) * (BigInt(10) ** BigInt(18));
+
+// Exact 4-byte selectors matching DirectPulse Solidity contract:
+// activatePackage(address)
+const ACTIVATE_PACKAGE_SELECTOR = "0x1d930262";
+// getUserDetails(address) -> (bool isRegistered, address referrer, uint256 totalEarned, uint256 directCount)
+const GET_USER_DETAILS_SELECTOR = "0x2c64b0f3";
+// activePackages(address) -> bool
+const ACTIVE_PACKAGES_SELECTOR = "0xf1b6f377";
 
 // BNB Smart Chain (BSC Mainnet) parameters
 const BSC_CHAIN_ID_HEX = "0x38"; // 56
@@ -708,6 +719,11 @@ function decodeUint256(hexResult){
   return BigInt(hexResult);
 }
 
+function decodeBool(hexResult){
+  if(!hexResult || hexResult === "0x") return false;
+  return BigInt(hexResult) !== BigInt(0);
+}
+
 function formatUSDT(weiVal){
   const whole = weiVal / (BigInt(10) ** BigInt(18));
   const frac = (weiVal % (BigInt(10) ** BigInt(18))) / (BigInt(10) ** BigInt(16));
@@ -716,30 +732,37 @@ function formatUSDT(weiVal){
 
 async function loadUserDashboard(provider, userAddress){
   try{
-    // getUserDetails(address) selector = 0x2c64b0f3
-    const userDetailsData = "0x2c64b0f3" + encodeAddress(userAddress);
+    // getUserDetails(address) returns (bool isRegistered, address referrer, uint256 totalEarned, uint256 directCount)
+    const userDetailsData = GET_USER_DETAILS_SELECTOR + encodeAddress(userAddress);
     const resHex = await provider.request({
       method: "eth_call",
       params: [{ to: CONTRACT_ADDRESS, data: userDetailsData }, "latest"]
     });
-    if(resHex && resHex.length >= 322){
+
+    let isActivePkg = false;
+    if(resHex && resHex.length >= 258){
       const clean = resHex.replace(/^0x/, "");
       const totalEarned = BigInt("0x" + clean.slice(128, 192));
       const directCount = BigInt("0x" + clean.slice(192, 256));
-      const totalInvested = BigInt("0x" + clean.slice(256, 320));
       $('dashDirectCount').textContent = directCount.toString();
       $('dashTotalEarned').textContent = formatUSDT(totalEarned) + " USDT";
-      $('dashTotalInvested').textContent = formatUSDT(totalInvested) + " USDT";
     }
 
-    // activePackages(address) selector = 0xf1b6f377
-    const activePkgData = "0xf1b6f377" + encodeAddress(userAddress);
+    // activePackages(address) returns bool
+    const activePkgData = ACTIVE_PACKAGES_SELECTOR + encodeAddress(userAddress);
     const pkgHex = await provider.request({
       method: "eth_call",
       params: [{ to: CONTRACT_ADDRESS, data: activePkgData }, "latest"]
     });
-    const activePkgWei = decodeUint256(pkgHex);
-    $('dashActivePkg').textContent = (activePkgWei / (BigInt(10) ** BigInt(18))).toString() + " USDT";
+    isActivePkg = decodeBool(pkgHex);
+
+    if(isActivePkg){
+      $('dashActivePkg').textContent = "25.00 USDT";
+      $('dashTotalInvested').textContent = "25.00 USDT";
+    }else{
+      $('dashActivePkg').textContent = "Inactive";
+      $('dashTotalInvested').textContent = "0.00 USDT";
+    }
   }catch(e){
     // Silent fallback if RPC rate-limits
   }
@@ -825,13 +848,13 @@ async function copyReferral(){
   }
 }
 
-function getCleanReferrer(){
+function getCleanReferrer(userAddress){
   const urlParams = new URLSearchParams(window.location.search);
   const rawRef = (window.userReferrer || urlParams.get('ref') || "").trim();
   if(/^0x[a-fA-F0-9]{40}$/.test(rawRef)){
     return rawRef;
   }
-  return ZERO_ADDRESS;
+  return userAddress || ZERO_ADDRESS;
 }
 
 async function selectPackage(name, amount, btnEl){
@@ -862,10 +885,10 @@ async function selectPackage(name, amount, btnEl){
 
     await ensureBSCNetwork(provider);
 
-    // Dynamic Package Amount in 18 decimals (works for 25, 100, 400, 2500, 7500, 25000 USDT)
-    const amountWei = BigInt(amount) * (BigInt(10) ** BigInt(18));
+    // Contract PACKAGE_PRICE is fixed at 25 * 10**18 (18 decimals)
+    const amountWei = CONTRACT_PACKAGE_PRICE_WEI;
 
-    // 1. Check USDT balance
+    // 1. Check USDT balance (18 decimals)
     const balanceData = "0x70a08231" + encodeAddress(userAddress);
     const balanceHex = await provider.request({
       method: "eth_call",
@@ -873,7 +896,7 @@ async function selectPackage(name, amount, btnEl){
     });
     const usdtBalance = decodeUint256(balanceHex);
     if(usdtBalance < amountWei){
-      toast("Insufficient USDT (BEP20) balance for " + name + ".", 3500);
+      toast("Insufficient USDT (BEP20) balance. Need 25.00 USDT.", 3500);
       return;
     }
 
@@ -885,10 +908,10 @@ async function selectPackage(name, amount, btnEl){
     });
     const currentAllowance = decodeUint256(allowanceHex);
 
-    // 3. Approve USDT if allowance is less than required amount
+    // 3. Approve 25.00 USDT (18 decimals) if allowance is less than required amount
     if(currentAllowance < amountWei){
       if(btnEl) btnEl.textContent = "Approving USDT...";
-      toast("Approve " + name + " in your wallet...", 3000);
+      toast("Approve 25.00 USDT in your wallet...", 3000);
       const approveData = "0x095ea7b3" + encodeAddress(CONTRACT_ADDRESS) + encodeUint256(amountWei);
       const approveHash = await provider.request({
         method: "eth_sendTransaction",
@@ -906,14 +929,12 @@ async function selectPackage(name, amount, btnEl){
       toast("USDT Approved! Now confirming package...", 2500);
     }
 
-    // 4. Call activatePackage(address _referrer, uint256 _packageAmount)
+    // 4. Call activatePackage(address _referrer) matching Solidity contract signature
     if(btnEl) btnEl.textContent = "Confirm in Wallet...";
-    toast("Confirm " + name + " activation in wallet...", 3000);
+    toast("Confirm 25.00 USDT activation in wallet...", 3000);
 
-    const referrerAddr = getCleanReferrer();
-    // Exact 4-byte selector for activatePackage(address,uint256)
-    const activateSelector = "0x81f1b741";
-    const activateData = activateSelector + encodeAddress(referrerAddr) + encodeUint256(amountWei);
+    const referrerAddr = getCleanReferrer(userAddress);
+    const activateData = ACTIVATE_PACKAGE_SELECTOR + encodeAddress(referrerAddr);
 
     const activateHash = await provider.request({
       method: "eth_sendTransaction",
@@ -927,7 +948,7 @@ async function selectPackage(name, amount, btnEl){
     if(btnEl) btnEl.textContent = "Activating...";
     const receipt = await waitForTxReceipt(provider, activateHash);
     if(receipt && receipt.status === "0x1"){
-      toast(name + " activated! Funds distributed on-chain.", 4500);
+      toast("25.00 USDT activated! Funds distributed on-chain.", 4500);
       await loadUserDashboard(provider, userAddress);
     }else{
       toast("Activation failed on chain. Check BscScan.", 4000);
