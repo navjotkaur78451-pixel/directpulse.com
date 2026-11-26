@@ -298,7 +298,7 @@ section{padding:60px 0;position:relative}
   text-align: center;
 }
 .dash-card h4{font-size:11px;color:var(--muted);margin-bottom:8px; text-transform: uppercase; letter-spacing:0.5px}
-.dash-card .val{font:700 22px "Space Grotesk";color:#fff}
+.dash-card .val{font:700 20px "Space Grotesk";color:#fff;word-break:break-word}
 .dash-card .val.highlight{color:var(--cyan)}
 .dash-card .val.gold{color:#ffb84d}
 
@@ -421,7 +421,6 @@ section{padding:60px 0;position:relative}
   </div>
 </section>
 
-<!-- PACKAGES SECTION (packageId: 0 to 5) -->
 <section id="packages">
   <div class="container">
     <div class="section-head">
@@ -431,7 +430,6 @@ section{padding:60px 0;position:relative}
 
     <div class="packages">
 
-      <!-- PACKAGE 1 (packageId = 0): 25 USDT -->
       <article class="package">
         <div>
           <div class="pkg-badges">
@@ -451,7 +449,6 @@ section{padding:60px 0;position:relative}
         <button class="btn" onclick="selectPackage('25.00 USDT', 0, 25, this)">Activate Package</button>
       </article>
 
-      <!-- PACKAGE 2 (packageId = 1): 100 USDT -->
       <article class="package">
         <div>
           <div class="pkg-badges">
@@ -471,7 +468,6 @@ section{padding:60px 0;position:relative}
         <button class="btn" onclick="selectPackage('100 USDT', 1, 100, this)">Activate Package</button>
       </article>
 
-      <!-- PACKAGE 3 (packageId = 2): 400 USDT -->
       <article class="package">
         <div>
           <div class="pkg-badges">
@@ -491,7 +487,6 @@ section{padding:60px 0;position:relative}
         <button class="btn" onclick="selectPackage('400 USDT', 2, 400, this)">Activate Package</button>
       </article>
 
-      <!-- PACKAGE 4 (packageId = 3): 2,500 USDT -->
       <article class="package featured">
         <div>
           <div class="pkg-badges">
@@ -511,7 +506,6 @@ section{padding:60px 0;position:relative}
         <button class="btn primary" onclick="selectPackage('2,500 USDT', 3, 2500, this)">Activate Package</button>
       </article>
 
-      <!-- PACKAGE 5 (packageId = 4): 7,500 USDT -->
       <article class="package">
         <div>
           <div class="pkg-badges">
@@ -531,7 +525,6 @@ section{padding:60px 0;position:relative}
         <button class="btn" onclick="selectPackage('7,500 USDT', 4, 7500, this)">Activate Package</button>
       </article>
 
-      <!-- PACKAGE 6 (packageId = 5): 25,000 USDT -->
       <article class="package">
         <div>
           <div class="pkg-badges">
@@ -555,7 +548,6 @@ section{padding:60px 0;position:relative}
   </div>
 </section>
 
-<!-- REFERRAL SECTION -->
 <section id="referral">
   <div class="container">
     <div class="referral-box">
@@ -580,22 +572,25 @@ section{padding:60px 0;position:relative}
   </div>
 </footer>
 
-<!-- DASHBOARD MODAL -->
 <div class="modal" id="dashboardModal">
   <div class="modal-box">
     <div class="modal-top">
       <h3>Live <span class="gradient">Dashboard</span></h3>
       <span class="close" onclick="closeModal('dashboardModal')">×</span>
     </div>
-    
+
     <div class="dashboard-grid">
       <div class="dash-card">
-        <h4>Total Directs</h4>
-        <div class="val" id="dashDirectCount">0</div>
+        <h4>ID / Registration</h4>
+        <div class="val" id="dashRegistered">Not Registered</div>
       </div>
       <div class="dash-card">
         <h4>Packages Status</h4>
         <div class="val" id="dashActivePkg">Inactive</div>
+      </div>
+      <div class="dash-card">
+        <h4>Total Directs</h4>
+        <div class="val" id="dashDirectCount">0</div>
       </div>
     </div>
 
@@ -607,6 +602,10 @@ section{padding:60px 0;position:relative}
       <div class="dash-card">
         <h4>Total Spent</h4>
         <div class="val gold" id="dashTotalInvested">0.00 USDT</div>
+      </div>
+      <div class="dash-card">
+        <h4>Active Sponsor</h4>
+        <div class="val" id="dashSponsor">-</div>
       </div>
     </div>
   </div>
@@ -627,8 +626,8 @@ section{padding:60px 0;position:relative}
 <div class="toast" id="toast"></div>
 
 <script>
-// ਆਪਣੇ ਨਵੇਂ ਡਿਪਲੋਏ ਕੀਤੇ SmartPackageSystem ਕੰਟਰੈਕਟ ਦਾ ਐਡਰੈੱਸ ਇੱਥੇ ਪਾਓ
-const CONTRACT_ADDRESS = "YOUR_DEPLOYED_SMART_PACKAGE_SYSTEM_ADDRESS";
+// Deployed SmartPackageSystem Contract on BNB Smart Chain Mainnet
+const CONTRACT_ADDRESS = "0x2561a694c7c2ab5d803451097c79fa2f438dad68";
 
 // BSC Mainnet USDT (BEP-20 - 18 decimals)
 const USDT_BSC_ADDRESS = "0x55d398326f99059fF775485246999027B3197955";
@@ -637,7 +636,6 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const PACKAGE_PRICES_USDT = [25, 100, 400, 2500, 7500, 25000];
 const PACKAGE_NAMES = ["$25", "$100", "$400", "$2,500", "$7,500", "$25,000"];
 
-// BSC Mainnet (56)
 const BSC_CHAIN_ID_HEX = "0x38";
 const BSC_NETWORK_PARAMS = {
   chainId: BSC_CHAIN_ID_HEX,
@@ -653,7 +651,7 @@ const BSC_NETWORK_PARAMS = {
 
 const $ = (id) => document.getElementById(id);
 
-function toast(message, duration = 3200){
+function toast(message, duration = 3400){
   const el = $('toast');
   el.textContent = message;
   el.classList.add('show');
@@ -710,31 +708,117 @@ function decodeUint256(hexResult){
   return BigInt(hexResult);
 }
 
+function decodeAddressWord(word64){
+  if(!word64 || word64.length !== 64) return ZERO_ADDRESS;
+  return "0x" + word64.slice(24);
+}
+
+function shortAddr(addr){
+  if(!addr || addr.toLowerCase() === ZERO_ADDRESS) return "-";
+  return addr.slice(0, 6) + "..." + addr.slice(-4);
+}
+
 function formatUSDT(weiVal){
   const whole = weiVal / (BigInt(10) ** BigInt(18));
   const frac = (weiVal % (BigInt(10) ** BigInt(18))) / (BigInt(10) ** BigInt(16));
   return whole.toString() + "." + frac.toString().padStart(2, "0");
 }
 
-// keccak256 helper via RPC if available, fallback to known selectors
-async function getFunctionSelector(provider, signature){
-  try{
-    const hash = await provider.request({
-      method: "web3_sha3",
-      params: [signature]
-    });
-    if(hash && hash.startsWith("0x") && hash.length >= 10){
-      return hash.slice(0, 10);
+// Keccak-256 pure JS fallback so selectors work even if wallet RPC does not support web3_sha3
+function keccak256Hex(str){
+  const utf8 = new TextEncoder().encode(str);
+  const rc = [
+    0x0000000000000001n,0x0000000000008082n,0x800000000000808an,0x8000000080008000n,
+    0x000000000000808bn,0x0000000080000001n,0x8000000080008081n,0x8000000000008009n,
+    0x000000000000008an,0x0000000000000088n,0x0000000080008009n,0x000000008000000an,
+    0x000000008000808bn,0x800000000000008bn,0x8000000000008089n,0x8000000000008003n,
+    0x8000000000008002n,0x8000000000000080n,0x000000000000800an,0x800000008000000an,
+    0x8000000080008081n,0x8000000000008080n,0x0000000080000001n,0x8000000080008008n
+  ];
+  const rotl = (x, n) => ((x << n) | (x >> (64n - n))) & 0xffffffffffffffffn;
+  const state = Array(25).fill(0n);
+  const rate = 136;
+  const paddedLen = Math.ceil((utf8.length + 1) / rate) * rate;
+  const msg = new Uint8Array(paddedLen);
+  msg.set(utf8);
+  msg[utf8.length] = 0x01;
+  msg[paddedLen - 1] |= 0x80;
+
+  for(let offset = 0; offset < msg.length; offset += rate){
+    for(let i = 0; i < 17; i++){
+      let lane = 0n;
+      for(let b = 0; b < 8; b++){
+        lane |= BigInt(msg[offset + i * 8 + b]) << BigInt(b * 8);
+      }
+      state[i] ^= lane;
     }
-  }catch(e){}
-  return null;
+    for(let round = 0; round < 24; round++){
+      const c = [];
+      for(let x = 0; x < 5; x++){
+        c[x] = state[x] ^ state[x + 5] ^ state[x + 10] ^ state[x + 15] ^ state[x + 20];
+      }
+      const d = [];
+      for(let x = 0; x < 5; x++){
+        d[x] = c[(x + 4) % 5] ^ rotl(c[(x + 1) % 5], 1n);
+      }
+      for(let i = 0; i < 25; i++){
+        state[i] ^= d[i % 5];
+      }
+      const b = Array(25).fill(0n);
+      for(let y = 0; y < 5; y++){
+        for(let x = 0; x < 5; x++){
+          const idx = x + 5 * y;
+          const shifts = [0n,36n,3n,41n,18n,1n,44n,10n,45n,2n,62n,6n,43n,15n,61n,28n,55n,25n,21n,56n,27n,20n,66n,14n];
+          const newX = y;
+          const newY = (2 * x + 3 * y) % 5;
+          b[newX + 5 * newY] = rotl(state[idx], shifts[idx % 24]);
+        }
+      }
+      for(let y = 0; y < 5; y++){
+        for(let x = 0; x < 5; x++){
+          const idx = x + 5 * y;
+          state[idx] = b[idx] ^ ((~b[((x + 1) % 5) + 5 * y]) & b[((x + 2) % 5) + 5 * y]);
+        }
+      }
+      state[0] ^= rc[round];
+    }
+  }
+  let out = "0x";
+  for(let i = 0; i < 4; i++){
+    for(let byteIdx = 0; byteIdx < 8; byteIdx++){
+      const byteVal = Number((state[i] >> BigInt(byteIdx * 8)) & 0xffn);
+      out += byteVal.toString(16).padStart(2, "0");
+    }
+  }
+  return out;
 }
 
+async function getFunctionSelector(provider, signature){
+  try{
+    if(provider && provider.request){
+      const hash = await provider.request({
+        method: "web3_sha3",
+        params: [signature]
+      });
+      if(hash && hash.startsWith("0x") && hash.length >= 10){
+        return hash.slice(0, 10);
+      }
+    }
+  }catch(e){}
+  return keccak256Hex(signature).slice(0, 10);
+}
+
+// SmartPackageSystem UserInfo struct order:
+// slot 0 (0..64): bool isRegistered
+// slot 1 (64..128): bool hasAnyPackage
+// slot 2 (128..192): address sponsor
+// slot 3 (192..256): uint256 totalSpent
+// slot 4 (256..320): uint256 directCount
+// slot 5 (320..384): uint256 directEarned
 async function loadUserDashboard(provider, userAddress){
   try{
     if(!CONTRACT_ADDRESS || !/^0x[a-fA-F0-9]{40}$/.test(CONTRACT_ADDRESS)) return;
 
-    // users(address) -> (bool isRegistered, bool hasAnyPackage, address sponsor, uint256 totalSpent, uint256 directCount, uint256 directEarned)
     const usersSelector = await getFunctionSelector(provider, "users(address)");
     if(usersSelector){
       const resHex = await provider.request({
@@ -743,31 +827,34 @@ async function loadUserDashboard(provider, userAddress){
       });
       if(resHex && resHex.length >= 386){
         const clean = resHex.replace(/^0x/, "");
+        const isRegistered = BigInt("0x" + clean.slice(0, 64)) !== BigInt(0);
         const hasAnyPackage = BigInt("0x" + clean.slice(64, 128)) !== BigInt(0);
+        const sponsorAddr = decodeAddressWord(clean.slice(128, 192));
         const totalSpent = BigInt("0x" + clean.slice(192, 256));
         const directCount = BigInt("0x" + clean.slice(256, 320));
         const directEarned = BigInt("0x" + clean.slice(320, 384));
 
+        $('dashRegistered').textContent = isRegistered ? "Registered" : "Not Registered";
         $('dashDirectCount').textContent = directCount.toString();
         $('dashTotalEarned').textContent = formatUSDT(directEarned) + " USDT";
         $('dashTotalInvested').textContent = formatUSDT(totalSpent) + " USDT";
-        $('dashActivePkg').textContent = hasAnyPackage ? "Active" : "Inactive";
+        $('dashActivePkg').textContent = hasAnyPackage ? "Active" : (isRegistered ? "Registered Only" : "Inactive");
+        $('dashSponsor').textContent = shortAddr(sponsorAddr);
       }
     }
 
-    // getUserPackageStatus(address) -> bool[6]
     const pkgStatusSelector = await getFunctionSelector(provider, "getUserPackageStatus(address)");
     if(pkgStatusSelector){
       const pkgHex = await provider.request({
         method: "eth_call",
         params: [{ to: CONTRACT_ADDRESS, data: pkgStatusSelector + encodeAddress(userAddress) }, "latest"]
       });
-      if(pkgHex && pkgHex.length >= 450){
+      if(pkgHex && pkgHex.length >= 386){
         const clean = pkgHex.replace(/^0x/, "");
         const boughtList = [];
         for(let i = 0; i < 6; i++){
           const word = clean.slice(i * 64, (i + 1) * 64);
-          if(BigInt("0x" + word) !== BigInt(0)){
+          if(word.length === 64 && BigInt("0x" + word) !== BigInt(0)){
             boughtList.push(PACKAGE_NAMES[i]);
           }
         }
@@ -868,7 +955,20 @@ function getCleanReferrer(userAddress){
   return userAddress || ZERO_ADDRESS;
 }
 
-// packageId: 0..5, amountUsdt: 25..25000
+async function estimateGasWithBuffer(provider, txObj){
+  try{
+    const estHex = await provider.request({
+      method: "eth_estimateGas",
+      params: [txObj]
+    });
+    const estVal = BigInt(estHex);
+    const buffered = (estVal * BigInt(125)) / BigInt(100);
+    return "0x" + buffered.toString(16);
+  }catch(e){
+    return null;
+  }
+}
+
 async function selectPackage(label, packageId, amountUsdt, btnEl){
   const originalLabel = btnEl ? btnEl.textContent : "Activate Package";
   if(btnEl){
@@ -878,13 +978,13 @@ async function selectPackage(label, packageId, amountUsdt, btnEl){
 
   try{
     if(!CONTRACT_ADDRESS || !/^0x[a-fA-F0-9]{40}$/.test(CONTRACT_ADDRESS)){
-      toast("Please set your deployed SmartPackageSystem contract address first.", 4000);
+      toast("Set deployed SmartPackageSystem contract address first.", 4000);
       return;
     }
 
     const provider = await getProviderWithRetry();
     if(!provider){
-      toast("Please open inside Binance Web3 Wallet, MetaMask, or Trust Wallet.");
+      toast("Open inside Binance Web3 Wallet, MetaMask, or Trust Wallet.");
       return;
     }
 
@@ -900,13 +1000,39 @@ async function selectPackage(label, packageId, amountUsdt, btnEl){
       $('refLink').value = currentDomain + "?ref=" + userAddress;
     }
 
-    // 1. Ensure BNB Smart Chain (56) is selected
     await ensureBSCNetwork(provider);
 
     const priceFromList = PACKAGE_PRICES_USDT[packageId] || amountUsdt;
     const amountWei = BigInt(priceFromList) * (BigInt(10) ** BigInt(18));
 
-    // 2. Check user USDT (BEP-20) balance
+    // Check if this package was already purchased by user
+    const pkgStatusSelector = await getFunctionSelector(provider, "getUserPackageStatus(address)");
+    if(pkgStatusSelector){
+      const pkgHex = await provider.request({
+        method: "eth_call",
+        params: [{ to: CONTRACT_ADDRESS, data: pkgStatusSelector + encodeAddress(userAddress) }, "latest"]
+      });
+      if(pkgHex && pkgHex.length >= 386){
+        const clean = pkgHex.replace(/^0x/, "");
+        const word = clean.slice(packageId * 64, (packageId + 1) * 64);
+        if(word.length === 64 && BigInt("0x" + word) !== BigInt(0)){
+          toast(PACKAGE_NAMES[packageId] + " package already purchased once.", 3800);
+          return;
+        }
+      }
+    }
+
+    // Check BNB balance for gas
+    const bnbHex = await provider.request({
+      method: "eth_getBalance",
+      params: [userAddress, "latest"]
+    });
+    if(decodeUint256(bnbHex) === BigInt(0)){
+      toast("Need a little BNB on BSC for network gas fee.", 3800);
+      return;
+    }
+
+    // Check USDT balance
     const balanceData = "0x70a08231" + encodeAddress(userAddress);
     const balanceHex = await provider.request({
       method: "eth_call",
@@ -918,7 +1044,7 @@ async function selectPackage(label, packageId, amountUsdt, btnEl){
       return;
     }
 
-    // 3. Check current USDT allowance for SmartPackageSystem contract
+    // Check allowance
     const allowanceData = "0xdd62ed3e" + encodeAddress(userAddress) + encodeAddress(CONTRACT_ADDRESS);
     const allowanceHex = await provider.request({
       method: "eth_call",
@@ -926,19 +1052,23 @@ async function selectPackage(label, packageId, amountUsdt, btnEl){
     });
     const currentAllowance = decodeUint256(allowanceHex);
 
-    // 4. First step: Approve USDT and wait for confirmation on-chain
+    // Step 1: Approve USDT if needed
     if(currentAllowance < amountWei){
       if(btnEl) btnEl.textContent = "Approving USDT...";
       toast("Step 1/2: Approve " + priceFromList + " USDT in wallet...", 3200);
 
       const approveData = "0x095ea7b3" + encodeAddress(CONTRACT_ADDRESS) + encodeUint256(amountWei);
+      const approveTxObj = {
+        from: userAddress,
+        to: USDT_BSC_ADDRESS,
+        data: approveData
+      };
+      const approveGas = await estimateGasWithBuffer(provider, approveTxObj);
+      if(approveGas) approveTxObj.gas = approveGas;
+
       const approveHash = await provider.request({
         method: "eth_sendTransaction",
-        params: [{
-          from: userAddress,
-          to: USDT_BSC_ADDRESS,
-          data: approveData
-        }]
+        params: [approveTxObj]
       });
 
       const approveReceipt = await waitForTxReceipt(provider, approveHash);
@@ -949,13 +1079,13 @@ async function selectPackage(label, packageId, amountUsdt, btnEl){
       toast("Approval confirmed! Now confirming " + priceFromList + " USDT send...", 2800);
     }
 
-    // 5. Second step: Send activatePackage(uint256 packageId, address sponsorAddress) to wallet
+    // Step 2: Estimate gas & send activatePackage(uint256,address)
     if(btnEl) btnEl.textContent = "Confirm Send...";
-    toast("Step 2/2: Confirm " + priceFromList + " USDT in wallet...", 3200);
+    toast("Step 2/2: Confirm " + priceFromList + " USDT send in wallet...", 3200);
 
     const activateSelector = await getFunctionSelector(provider, "activatePackage(uint256,address)");
     if(!activateSelector){
-      toast("Could not compute contract selector. Use an RPC supporting web3_sha3.", 4000);
+      toast("Selector error. Try refreshing or another RPC.", 3800);
       return;
     }
 
@@ -965,27 +1095,34 @@ async function selectPackage(label, packageId, amountUsdt, btnEl){
       encodeUint256(BigInt(packageId)) +
       encodeAddress(referrerAddr);
 
+    const activateTxObj = {
+      from: userAddress,
+      to: CONTRACT_ADDRESS,
+      data: activateData
+    };
+
+    const estGas = await estimateGasWithBuffer(provider, activateTxObj);
+    if(estGas){
+      activateTxObj.gas = estGas;
+    }
+
     const activateHash = await provider.request({
       method: "eth_sendTransaction",
-      params: [{
-        from: userAddress,
-        to: CONTRACT_ADDRESS,
-        data: activateData
-      }]
+      params: [activateTxObj]
     });
 
     if(btnEl) btnEl.textContent = "Activating...";
     const receipt = await waitForTxReceipt(provider, activateHash);
     if(receipt && receipt.status === "0x1"){
-      toast(priceFromList + " USDT deducted & package activated!", 4500);
+      toast(priceFromList + " USDT sent & package activated!", 4500);
       await loadUserDashboard(provider, userAddress);
     }else{
-      toast("Package transaction failed. Check BscScan.", 4000);
+      toast("Package transaction failed on chain. Check BscScan.", 4000);
     }
 
   }catch(err){
-    const msg = (err && (err.shortMessage || err.message)) || "Transaction cancelled or failed.";
-    toast(msg.slice(0, 100), 4000);
+    const rawMsg = (err && (err.shortMessage || (err.data && err.data.message) || err.message)) || "Transaction failed.";
+    toast(rawMsg.slice(0, 110), 4200);
   }finally{
     if(btnEl){
       btnEl.disabled = false;
